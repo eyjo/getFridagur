@@ -34,12 +34,12 @@ getSumardagur <- function(y = NULL) {
   # fyrsti sumardagurinn (as 'Date' type).
   #
   # Check formating:
-  if (!is.numeric(Y)) {
-    if (is.null(Y))
-      Y <- Sys.Date()
-    if (inherits(Y, "Date"))
-      Y <- format(Y, "%Y")
-    Y <- as.numeric(Y)
+  if (!is.numeric(y)) {
+    if (is.null(y))
+      y <- Sys.Date()
+    if (inherits(y, "Date"))
+      y <- format(y, "%Y")
+    y <- as.numeric(y)
   }
   #
   # Fyrsti fimmtudagurinn eftir 18. apríl:
@@ -60,12 +60,12 @@ getVerslunardag <- function(y = NULL) {
   # frídagur verzlunarmanna (as 'Date' type).
   #
   # Check formating:
-  if (!is.numeric(Y)) {
-    if (is.null(Y))
-      Y <- Sys.Date()
-    if (inherits(Y, "Date"))
-      Y <- format(Y, "%Y")
-    Y <- as.numeric(Y)
+  if (!is.numeric(y)) {
+    if (is.null(y))
+      y <- Sys.Date()
+    if (inherits(y, "Date"))
+      y <- format(y, "%Y")
+    y <- as.numeric(y)
   }
   #
   # Fyrsti mánudagurinn í ágúst.
@@ -81,10 +81,18 @@ getVerslunardag <- function(y = NULL) {
   }
 }
 
-getFridagur <- function(x = Sys.Date(), days = c("all", "whole", "half"), weekend = TRUE, name = FALSE, abbreviate = FALSE) {
+getFridagur <- function(x = Sys.Date(), days = c("all", "whole", "half", "none"), weekend = TRUE, name = FALSE, abbreviate = FALSE) {
   # Input date (as 'Date' type). Returns indicator variable of whether it is
   # an Icelandic public holiday (as 'logic' type, i.e. TRUE/FALSE). If the
   # input parameter 'name' is TRUE the public holiday names are return.
+  # Example:
+  #   getFridagur()
+  #   getFridagur(seq(as.Date("2011/1/1"), as.Date("2013/12/31"), by="1 day"))
+  #   getFridagur(seq(as.Date("2011/1/1"), as.Date("2013/12/31"), by="1 day"), weekend=TRUE, name=TRUE)
+  #   getFridagur(seq(as.Date("2012/1/1"), as.Date("2012/12/31"), by="1 day"), name=TRUE)
+  #   data.frame(
+  #      Dags = seq(as.Date("2013/1/1"), as.Date("2013/12/31"), by="1 day"),
+  #   	 Dagur = getFridagur(seq(as.Date("2013/1/1"), as.Date("2013/12/31"), by="1 day"), weekend=TRUE, name=TRUE))
   #
   days <- match.arg(days)
   #
@@ -154,13 +162,28 @@ getFridagur <- function(x = Sys.Date(), days = c("all", "whole", "half"), weeken
   ans
 }
 
-# # Example of use:
-# getFridagur()
-# getFridagur(seq(as.Date("2011/1/1"), as.Date("2013/12/31"), by="1 day"))
-# getFridagur(seq(as.Date("2011/1/1"), as.Date("2013/12/31"), by="1 day"), weekend=TRUE, name=TRUE)
-# getFridagur(seq(as.Date("2012/1/1"), as.Date("2012/12/31"), by="1 day"), name=TRUE)
-# data.frame(
-#   Dags = seq(as.Date("2013/1/1"), as.Date("2013/12/31"), by="1 day"),
-#   Dagur = getFridagur(seq(as.Date("2013/1/1"), as.Date("2013/12/31"), by="1 day"), weekend=TRUE, name=TRUE))
 
-
+getVinnustundir <- function(y, breakdown="%Y", fullhours = 8, halfhours = 4, weekendhours = 0) {
+  # Get the number of working hours in year 'y', broken down into 'breakdown', given
+  # the number of hours worked in a full day, half day and at weekends.
+  # Example:
+  #   getVinnustundir(2013)
+  #   getVinnustundir(1989:2013)
+  #   getVinnustundir(1997:2011, "%Y-%m", 8, 4, 0)
+  #   getVinnustundir(1997:2011, "%Y", 12, 8, 8)
+  #
+  if (length(y) > 1) {
+    theDates <- do.call("c", lapply(y, function(x) seq(as.Date(paste(x, 1, 1, sep="/")), as.Date(paste(x, 12, 31, sep="/")), by="1 day")))
+  } else {
+    theDates <- seq(as.Date(paste(y, 1, 1, sep="/")), as.Date(paste(y, 12, 31, sep="/")), by="1 day")
+  }
+  tapply(
+    theDates,
+    format(theDates, breakdown),
+    function(x)
+      sum(
+        fullhours * (!getFridagur(x, days="all", weekend=TRUE)) +
+        halfhours * getFridagur(x, days="half", weekend=FALSE) +
+        weekendhours * getFridagur(x, days="none", weekend=TRUE))
+    )
+}
