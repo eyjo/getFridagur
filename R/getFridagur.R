@@ -177,13 +177,16 @@ getVinnustundir <- function(y, breakdown="%Y", fullhours = 8, halfhours = 4, wee
   } else {
     theDates <- seq(as.Date(paste(y, 1, 1, sep="/")), as.Date(paste(y, 12, 31, sep="/")), by="1 day")
   }
+  fullDays <- !getFridagur(theDates, days="all", weekend=TRUE)
+  weekends <- getFridagur(theDates, days="none", weekend=TRUE)
+  halfdays <- getFridagur(theDates, days="half", weekend=FALSE) & !weekends
   tapply(
-    theDates,
+    1:length(theDates),
     format(theDates, breakdown),
     function(x)
       sum(
-        fullhours * (!getFridagur(x, days="all", weekend=TRUE)) +
-        halfhours * getFridagur(x, days="half", weekend=FALSE) +
-        weekendhours * getFridagur(x, days="none", weekend=TRUE))
+        fullhours * fullDays[x] +
+        halfhours * halfdays[x] +
+        weekendhours * weekends[x])
     )
 }
