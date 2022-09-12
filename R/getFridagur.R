@@ -12,21 +12,22 @@ getEaster <- function(Y = NULL) {
     Y <- as.numeric(Y)
   }
   #
-  # Algorithm E. (Date of Easter)
-  # In "The Art of Computer Programming, Volume 1, Fundamental Algorithms"
-  # Donald E. Knuth (1969), pages 155-156
-  G <- Y %% 19 + 1                     # Golden number
-  C <- Y %/% 100 + 1                   # Century
-  X <- (3 * C) %/% 4 - 12              # Corrections
-  Z <- (8 * C + 5) %/% 25 - 5
-  D <- (5 * Y) %/% 4 - X - 10          # Find Sunday
-  E <- (11 * G + 20 + Z - X) %% 30     # Epact
-  N <- 44 - E                          # Full moon
-  N <- N + ifelse(N < 21, 30, 0)
-  N <- N + 7 - (D + N) %% 7            # Advance to Sunday
-  month <- ifelse(N > 31, "04", "03")  # Get month
-  N <- N - ifelse(N > 31, 31, 0)       # Get day
-  as.Date(paste(Y, month, N, sep = "/"))
+  # The Meeus/Jones/Butcher algorithm
+  a <- Y %% 19
+  b <- floor(Y / 100)
+  c <- Y %% 100
+  d <- floor(b / 4)
+  e <- b %% 4
+  f <- floor((b + 8) / 25)
+  g <- floor((b - f + 1) / 3)
+  h <- (19 * a + b - d - g + 15) %% 30
+  i <- floor(c / 4)
+  k <- c %% 4
+  L <- (32 + 2 * e + 2 * i - h - k) %% 7
+  m <- floor((a + 11 * h + 22 * L) / 451)
+  month <- floor((h + L - 7 * m + 114) / 31)
+  day <- ((h + L - 7 * m + 114) %% 31) + 1
+  as.Date(paste(Y, month, day, sep="-"))
 }
 
 getSumardagur <- function(y = NULL) {
@@ -78,6 +79,49 @@ getVerslunardag <- function(y = NULL) {
       by = "1 day"
     )
     x[which(as.POSIXlt(x)$wday == 1)]
+  }
+}
+
+getSjomannadag <- function(y = NULL) {
+  # Input integer value representing year. Returns date of
+  # Sjómannadagur (as 'Date' type).
+  #
+  # Check formating:
+  if (!is.numeric(y)) {
+    if (is.null(y))
+      y <- Sys.Date()
+    if (inherits(y, "Date"))
+      y <- format(y, "%Y")
+    y <- as.numeric(y)
+  }
+  #
+  # Fyrsti sunnudagurinn í júní, nema ef það er hvítasunnudagur (þá +7).
+  if (length(y) > 1) {
+    do.call("c", lapply(y, getSjomannadag))
+  } else {
+    # Check exeptions:
+    if (y == 1938 | y == 1963) {
+      x <- getEaster(y) + 50      # Haldið annan í hvítasunnu
+    } else if (y <= 1968 & y >= 1965) {
+      # Veit ekki hvað var í gangi hérna ... en þetta voru dagarnir:
+      if (y == 1965) x <- as.Date("1965/05/30")
+      if (y == 1966) x <- as.Date("1966/05/15")
+      if (y == 1967) x <- as.Date("1967/05/28")
+      if (y == 1968) x <- as.Date("1968/05/26")
+    } else if (y == 1986) {
+      x <- as.Date("1986/06/08")  # Frestað vegna sveitasjórnarkosninga
+    } else {
+      # This is the general rule by law 20/1987 "Lög um Sjómannadag"
+      x <- seq(
+        as.Date(paste(y, "06/01", sep = "/")),
+        as.Date(paste(y, "06/07", sep = "/")),
+        by = "1 day"
+      )
+      x <- x[which(as.POSIXlt(x)$wday == 0)]
+      if (x == getEaster(y) + 49)
+        x <- x + 7
+    }
+    x
   }
 }
 
@@ -162,7 +206,6 @@ getFridagur <- function(x = Sys.Date(), days = c("all", "whole", "half", "none")
   ans
 }
 
-
 getVinnustundir <- function(y, breakdown="%Y", fullhours = 8, halfhours = 4, weekendhours = 0) {
   # Get the number of working hours in year 'y', broken down into 'breakdown', given
   # the number of hours worked in a full day, half day and at weekends.
@@ -177,16 +220,12 @@ getVinnustundir <- function(y, breakdown="%Y", fullhours = 8, halfhours = 4, wee
   } else {
     theDates <- seq(as.Date(paste(y, 1, 1, sep="/")), as.Date(paste(y, 12, 31, sep="/")), by="1 day")
   }
-  fullDays <- !getFridagur(theDates, days="all", weekend=TRUE)
-  weekends <- getFridagur(theDates, days="none", weekend=TRUE)
-  halfdays <- getFridagur(theDates, days="half", weekend=FALSE) & !weekends
+  weekend <- getFridagur(theDates, days="none", weekend=TRUE)
+  fullday <- !getFridagur(theDates, days="all", weekend=TRUE)
+  halfday <- getFridagur(theDates, days="half", weekend=FALSE) & !weekend
   tapply(
-    1:length(theDates),
-    format(theDates, breakdown),
-    function(x)
-      sum(
-        fullhours * fullDays[x] +
-        halfhours * halfdays[x] +
-        weekendhours * weekends[x])
-    )
+    fullhours * fullday + halfhours * halfday + weekendhours * weekend, 
+    format(theDates, breakdown), 
+    FUN=sum)
 }
+
